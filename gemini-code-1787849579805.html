@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Break the Bed Simulator</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            background: #0f0f17;
+            color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+        #game-wrapper {
+            position: relative;
+            box-shadow: 0 0 50px rgba(0,0,0,0.8);
+            border: 4px solid #333;
+            border-radius: 14px;
+            background: #161622;
+        }
+        canvas {
+            display: block;
+            background: radial-gradient(circle at center, #242438 0%, #0c0c14 100%);
+            cursor: crosshair;
+        }
+        .hud {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            right: 15px;
+            display: flex;
+            justify-content: space-between;
+            pointer-events: none;
+            font-size: 15px;
+            font-weight: bold;
+            z-index: 10;
+        }
+        .hud-box {
+            background: rgba(0, 0, 0, 0.75);
+            padding: 8px 14px;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        #health-bar-container {
+            width: 140px;
+            height: 12px;
+            background: #333;
+            border-radius: 6px;
+            overflow: hidden;
+            display: inline-block;
+            vertical-align: middle;
+            margin-left: 6px;
+            border: 1px solid #555;
+        }
+        #health-bar {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, #ff4757, #ff6b81);
+            transition: width 0.1s ease;
+        }
+        #cooldown-bar-container {
+            width: 90px;
+            height: 10px;
+            background: #333;
+            border-radius: 5px;
+            overflow: hidden;
+            display: inline-block;
+            vertical-align: middle;
+            margin-left: 4px;
+            border: 1px solid #555;
+        }
+        #cooldown-bar {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, #2ed573, #7bed9f);
+            transition: width 0.05s linear;
+        }
+        #level-banner {
+            position: absolute;
+            top: 35%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            background: rgba(46, 204, 113, 0.95);
+            color: white;
+            padding: 20px 40px;
+            font-size: 26px;
+            font-weight: bold;
+            border-radius: 12px;
+            box-shadow: 0 0 30px rgba(46, 204, 113, 0.6);
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 20;
+            pointer-events: none;
+        }
+        #level-banner.show {
+            transform: translate(-50%, -50%) scale(1);
+        }
+        #toolbar {
+            position: absolute;
+            bottom: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 8px;
+            background: rgba(0, 0, 0, 0.75);
+            padding: 10px;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.15);
+            z-index: 10;
+        }
+        .tool-btn {
+            background: #2f3542;
+            color: white;
+            border: 2px solid transparent;
+            padding: 8px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+        .tool-btn:hover {
+            background: #57606f;
+        }
+        .tool-btn.active {
+            background: #ff4757;
+            border-color: #ff6b81;
+            box-shadow: 0 0 10px rgba(255,71,87,0.5);
+        }
+        #shop-toggle-btn {
+            background: #f1c40f;
+            color: #111;
+            border: none;
+            padding: 8px 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 13px;
+            transition: all 0.2s;
+            pointer-events: auto;
+        }
+        #shop-toggle-btn:hover {
+            background: #f39c12;
+            transform: scale(1.05);
+        }
+        #shop-modal {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            background: rgba(20, 20, 30, 0.95);
+            border: 2px solid #f1c40f;
+            padding: 25px;
+            border-radius: 14px;
+            width: 450px;
+            z-index: 50;
+            box-shadow: 0 0 40px rgba(241, 196, 15, 0.4);
+            transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        #shop-modal.show {
+            transform: translate(-50%, -50%) scale(1);
+        }
+        #shop-modal h3 {
+            margin: 0 0 10px 0;
+            color: #f1c40f;
+            text-align: center;
+            font-size: 22px;
+            text-transform: uppercase;
+        }
+        .shop-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 10px 14px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .shop-item-info span {
+            display: block;
+            font-size: 13px;
+            color: #a4b0be;
+        }
+        .shop-item-info b {
+            font-size: 15px;
+            color: #fff;
+        }
+        .buy-btn {
+            background: #2ed573;
+            color: #fff;
+            border: none;
+            padding: 8px 14px;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .buy-btn:hover {
+            background: #26af5f;
+        }
+        .buy-btn:disabled {
+            background: #57606f;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+        #close-shop {
+            background: #ff4757;
+            margin-top: 5px;
+        }
+        #close-shop:hover {
+            background: #ff6b81;
+        }
+        #pause-menu {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(5px);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+        #pause-menu h2 {
+            font-size: 34px;
+            margin-bottom: 25px;
+            color: #ff4757;
+            text-transform: uppercase;
+        }
+        .menu-btn {
+            background: #2f3542;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            margin: 8px;
+            font-size: 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            width: 220px;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+        .menu-btn:hover {
+            background: #ff4757;
+            transform: translateY(-2px);
+        }
+        .settings-group {
+            margin: 12px 0;
+            text-align: center;
+        }
+        .settings-group label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 13px;
+            color: #a4b0be;
+        }
+        .settings-group input[type="range"] {
+            width: 200px;
+            accent-color: #ff4757;
+        }
+        #instructions {
+            position: absolute;
+            top: 65px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.4);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            color: #a4b0be;
+            pointer-events: none;
+            z-index: 9;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-wrapper">
+        <div class="hud">
+            <div class="hud-box">
+                LVL: <span id="level-num">1</span> | HP: 
+                <div id="health-bar-container"><div id="health-bar"></div></div>
+                <span id="health-txt" style="margin-left: 4px;">1000</span>
+                <span style="margin-left: 10px;">CD:</span>
+                <div id="cooldown-bar-container"><div id="cooldown-bar"></div></div>
+            </div>
+            <div class="hud-box" style="display: flex; gap: 15px; align-items: center;">
+                <div>SCORE: <span id="score-val">0</span></div>
+                <button id="shop-toggle-btn">🛒 Shop</button>
+            </div>
+        </div>
+
+        <div id="instructions">ESC to Pause | A/D or Left/Right Arrows to Rotate Bed 3D</div>
+        <div id="level-banner">LEVEL CLEARED!</div>
+
+        <div id="shop-modal">
+            <h3>Bed Destruction Shop</h3>
+            <div class="shop-item">
+                <div class="shop-item-info">
+                    <b>Damage Booster</b>
+                    <span>Current Multiplier: <span id="dmg-mult-display">1x</span></span>
+                </div>
+                <button class="buy-btn" id="buy-dmg-btn" onclick="buyUpgrade('damage')">Cost: <span id="dmg-cost">500</span> pts</button>
+            </div>
+            <div class="shop-item">
+                <div class="shop-item-info">
+                    <b>Faster Cooldown</b>
+                    <span>Current Speed: <span id="cd-mult-display">1x</span></span>
+                </div>
+                <button class="buy-btn" id="buy-cd-btn" onclick="buyUpgrade('cooldown')">Cost: <span id="cd-cost">400</span> pts</button>
+            </div>
+            <div class="shop-item">
+                <div class="shop-item-info">
+                    <b>Auto-Cash Generator</b>
+                    <span>Income per second: <span id="auto-display">0</span> pts/s</span>
+                </div>
+                <button class="buy-btn" id="buy-auto-btn" onclick="buyUpgrade('auto')">Cost: <span id="auto-cost">1000</span> pts</button>
+            </div>
+            <button class="menu-btn" id="close-shop" style="width: 100%;">Resume Game</button>
+        </div>
+
+        <canvas id="simCanvas" width="920" height="600"></canvas>
+
+        <div id="toolbar">
+            <button class="tool-btn active" data-tool="gun">🔫 Pistol (1)</button>
+            <button class="tool-btn" data-tool="minigun">🔥 Minigun (2)</button>
+            <button class="tool-btn" data-tool="laser">⚡ Laser (3)</button>
+            <button class="tool-btn" data-tool="bomb">💣 Bomb (4)</button>
+        </div>
+
+        <div id="pause-menu">
+            <h2>Game Paused</h2>
+            <button class="menu-btn" id="resume-btn">Resume</button>
+            <div class="settings-group">
+                <label for="music-vol">Music Volume</label>
+                <input type="range" id="music-vol" min="0" max="1" step="0.05" value="0.3">
+            </div>
+            <div class="settings-group">
+                <label for="sfx-vol">SFX Volume</label>
+                <input type="range" id="sfx-vol" min="0" max="1" step="0.05" value="0.6">
+            </div>
+            <button class="menu-btn" id="reset-btn" style="background: #c0392b;">Reset Game</button>
+        </div>
+    </div>
+
+<script>
+    const canvas = document.getElementById('simCanvas');
+    const ctx = canvas.getContext('2d');
+
+    const healthBar = document.getElementById('health-bar');
+    const healthTxt = document.getElementById('health-txt');
+    const cooldownBar = document.getElementById('cooldown-bar');
+    const scoreVal = document.getElementById('score-val');
+    const levelNum = document.getElementById('level-num');
+    const levelBanner = document.getElementById('level-banner');
+    const pauseMenu = document.getElementById('pause-menu');
+    const resumeBtn = document.getElementById('resume-btn');
+    const resetBtn = document.getElementById('reset-btn');
+    const musicVol = document.getElementById('music-vol');
+    const sfxVol = document.getElementById('sfx-vol');
+    const toolBtns = document.querySelectorAll('.tool-btn');
+
+    const shopToggleBtn = document.getElementById('shop-toggle-btn');
+    const shopModal = document.getElementById('shop-modal');
+    const closeShopBtn = document.getElementById('close-shop');
+    const dmgCostEl = document.getElementById('dmg-cost');
+    const cdCostEl = document.getElementById('cd-cost');
+    const autoCostEl = document.getElementById('auto-cost');
+    const dmgMultDisplay = document.getElementById('dmg-mult-display');
+    const cdMultDisplay = document.getElementById('cd-mult-display');
+    const autoDisplay = document.getElementById('auto-display');
+    const buyDmgBtn = document.getElementById('buy-dmg-btn');
+    const buyCdBtn = document.getElementById('buy-cd-btn');
+    const buyAutoBtn = document.getElementById('buy-auto-btn');
+
+    let isPaused = false;
+    let score = 0;
+    let level = 1;
+    let currentTool = 'gun';
+    let isMouseDown = false;
+    
+    let bedAngle = 0;
+    let keysPressed = {};
+    let weaponCooldownMax = 12;
+    let weaponCooldownTimer = 0;
+
+    let upgrades = {
+        damageLevel: 1,
+        damageCost: 500,
+        cooldownLevel: 1,
+        cooldownCost: 400,
+        autoLevel: 0,
+        autoCost: 1000
+    };
+
+    const weaponSpecs = {
+        gun: { cooldown: 12 },
+        minigun: { cooldown: 4 },
+        laser: { cooldown: 25 },
+        bomb: { cooldown: 60 }
+    };
+
+    let audioCtx = null;
+    let musicGain, sfxGain, musicInterval;
+
+    function initAudio() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            startMusic();
+        } else if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+    }
+
+    function setupAudioNodes() {
+        if (!audioCtx) return;
+        musicGain = audioCtx.createGain();
+        musicGain.gain.value = parseFloat(musicVol.value);
+        musicGain.connect(audioCtx.destination);
+
+        sfxGain = audioCtx.createGain();
+        sfxGain.gain.value = parseFloat(sfxVol.value);
+        sfxGain.connect(audioCtx.destination);
+    }
+
+    function startMusic() {
+        setupAudioNodes();
+        if (musicInterval) clearInterval(musicInterval);
+
+        const chords = [
+            [130.81, 196.00, 261.63],
+            [110.00, 164.81, 220.00],
+            [98.00, 146.83, 196.00],
+            [87.31, 130.81, 174.61]
+        ];
+        let idx = 0;
+
+        musicInterval = setInterval(() => {
+            if (isPaused || !audioCtx) return;
+            const chord = chords[idx];
+            idx = (idx + 1) % chords.length;
+
+            chord.forEach((freq, i) => {
+                setTimeout(() => {
+                    if (isPaused || !audioCtx) return;
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+
+                    gain.gain.setValueAtTime(0, audioCtx.currentTime);
+                    gain.gain.linearRampToValueAtTime(0.05, audioCtx.currentTime + 0.3);
+                    gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 3.0);
+
+                    osc.connect(gain);
+                    gain.connect(musicGain);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 3.1);
+                }, i * 150);
+            });
+        }, 3600);
+    }
+
+    function playSound(type) {
+        if (!audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+
+        if (type === 'gun') {
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(320, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(30, audioCtx.currentTime + 0.08);
+            gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.08);
+        } else if (type === 'minigun') {
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(250 + Math.random() * 50, audioCtx.currentTime);
+            osc.frequency.linearRampToValueAtTime(50, audioCtx.currentTime + 0.04);
+            gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.04);
+        } else if (type === 'laser') {
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+            osc.frequency.linearRampToValueAtTime(200, audioCtx.currentTime + 0.1);
+            gain.gain.setValueAtTime(0.18, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+        }
+
+        osc.connect(gain);
+        gain.connect(sfxGain);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.12);
+    }
+
+    function playExplosionSound() {
+        if (!audioCtx) return;
+        const bufferSize = audioCtx.sampleRate * 0.6;
+        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+
+        const noise = audioCtx.createBufferSource();
+        noise.buffer = buffer;
+
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(300, audioCtx.currentTime);
+        filter.frequency.linearRampToValueAtTime(30, audioCtx.currentTime + 0.6);
+
+        const gain = audioCtx.createGain();
+        gain.gain.setValueAtTime(0.6, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.6);
+
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(sfxGain);
+        noise.start();
+    }
+
+    musicVol.addEventListener('input', e => { if (musicGain) musicGain.gain.value = e.target.value; });
+    sfxVol.addEventListener('input', e => { if (sfxGain) sfxGain.gain.value = e.target.value; });
+
+    const CX = canvas.width / 2;
+    const CY = canvas.height / 2 + 20;
+
+    function project(x, y, z) {
+        const cos = Math.cos(bedAngle);
+        const sin = Math.sin(bedAngle);
+        
+        const rotX = x * cos - z * sin;
+        const rotZ = x * sin + z * cos;
+
+        const scale = 380 / (380 + rotZ);
+        return {
+            x: CX + rotX * scale,
+            y: CY + y * scale - rotZ * scale,
+            scale: scale,
+            depth: rotZ
+        };
+    }
+
+    let bedParts = [];
+    let particles = [];
+    let floatingTexts = [];
+    let laserBeams = [];
+    let maxBedHealth = 1000;
+    let bedHealth = 1000;
+
+    function buildBed(lvl) {
+        maxBedHealth = 1000 + (lvl - 1) * 350;
+        bedHealth = maxBedHealth;
+        particles = [];
+        floatingTexts = [];
+        laserBeams = [];
+
+        bedParts = [
+            {
+                name: 'Mattress', cx: 0, cy: -15, cz: 0, dx: 170, dy: 32, dz: 115,
+                topCol: '#f1f2f6', sideCol: '#dfe4ea', frontCol: '#ced6e0',
+                maxHp: Math.floor(maxBedHealth * 0.4), hp: Math.floor(maxBedHealth * 0.4)
+            },
+            {
+                name: 'Left Pillow', cx: -55, cy: -36, cz: -32, dx: 45, dy: 12, dz: 32,
+                topCol: '#ff6b81', sideCol: '#ff4757', frontCol: '#e84118',
+                maxHp: Math.floor(maxBedHealth * 0.1), hp: Math.floor(maxBedHealth * 0.1)
+            },
+            {
+                name: 'Right Pillow', cx: 55, cy: -36, cz: -32, dx: 45, dy: 12, dz: 32,
+                topCol: '#5352ed', sideCol: '#3742fa', frontCol: '#2f3640',
+                maxHp: Math.floor(maxBedHealth * 0.1), hp: Math.floor(maxBedHealth * 0.1)
+            },
+            {
+                name: 'Bed Frame', cx: 0, cy: 12, cz: 0, dx: 180, dy: 24, dz: 125,
+                topCol: '#718093', sideCol: '#4a5568', frontCol: '#2d374
